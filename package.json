@@ -8,6 +8,8 @@
   },
   "scripts": {
     "build": "tsc --noEmit && vite build",
+    "deploy": "wrangler deploy",
+    "deploy:check": "wrangler deploy --dry-run",
     "start": "node --env-file-if-exists=.env --experimental-strip-types server/index.ts",
     "start:edge": "node --env-file=.env --experimental-strip-types server/index.ts",
     "benchmark:traffic": "node --experimental-strip-types scripts/benchmark-traffic.ts",
@@ -31,6 +33,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "typescript": "7.0.2",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "wrangler": "4.155.0"
   }
 }

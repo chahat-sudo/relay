@@ -18,6 +18,10 @@ Open **http://127.0.0.1:4180**. It binds only to loopback and uses SQLite under 
 
 For client development, run `npm start` and `npm run dev` in separate terminals. Vite serves port 5180 and proxies API requests to 4180. `npm run build` checks TypeScript and builds locally served assets, including fonts.
 
+Cloudflare frontend deployment uses the root Wrangler configuration. See
+[deployment commands and backend requirements](CLOUDFLARE-DEPLOYMENT.md) before
+using the hosted workspace.
+
 ### Iframe landing-page example
 
 Open <http://127.0.0.1:4180/example/frame> to see a branded outer page embedding a fictional Fieldnote landing page from `localhost`, a separate browser origin. Click **Explore the notebook**: the embedded page navigates while the outer address stays unchanged. **Open destination** opens the landing page directly for comparison.

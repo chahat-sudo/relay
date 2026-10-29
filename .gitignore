@@ -7,3 +7,6 @@ data/
 .impeccable/
 *.log
 supabase/.temp/
+.wrangler/
+.dev.vars
+.dev.vars.*
