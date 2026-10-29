@@ -1,0 +1,8 @@
+name = "relay-traffic-ingress"
+main = "worker.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+# Set PUBLIC_ORIGIN, ORIGIN_URL and RELAY_EDGE_KEY_ID in your Cloudflare environment.
+# Store RELAY_EDGE_KEY with Wrangler's secret facility; never put it in this file.
+# Add a route on your own hostname after following TRAFFIC-DETECTION.md.

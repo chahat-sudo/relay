@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { Store } from './store.ts';
-import type { Campaign, Rule, Device, Decision, Destination, CrawlerProvider, CrawlerRouting, TrafficDecision } from '../shared/types.ts';
+import type { CampaignConfig, Rule, Device, Decision, Destination, CrawlerProvider, CrawlerRouting, TrafficDecision } from '../shared/types.ts';
+import type { IdentityEvidence } from '../shared/traffic.ts';
 
 export class Problem extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 export function object(value: unknown): Record<string, unknown> { if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Problem('Expected a JSON object.'); return value as Record<string, unknown>; }
@@ -25,12 +26,13 @@ export function claimedCrawler(userAgent: string): CrawlerProvider | null {
   if (/(?:^|[^a-z0-9_-])(?:facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher)(?=[/;\s)]|$)/i.test(userAgent)) return 'meta';
   return null;
 }
-export function resolveTraffic(campaign: Campaign, destinations: Destination[], context: { source: string; device: Device; userAgent: string }): TrafficDecision {
+export function resolveTraffic<C extends CampaignConfig>(campaign: C, destinations: Destination[], context: { source: string; device: Device; identity: IdentityEvidence }): TrafficDecision<C> {
   if (campaign.status !== 'active') throw new Problem('This campaign is paused.', 410);
-  const provider = claimedCrawler(context.userAgent);
+  const { identity } = context;
+  const provider = identity.claimedProvider;
   const config = campaign.crawlerRouting;
-  if (config.enabled && provider && config.providers.includes(provider)) return { kind: 'crawler', campaign, ruleName: 'Crawler destination', provider, url: config.url, evidence: 'user-agent-only' };
-  return { kind: 'visitor', ...chooseRoute(campaign, destinations, context) };
+  if (config.enabled && identity.status === 'verified' && provider && config.providers.includes(provider)) return { kind: 'crawler', campaign, ruleName: 'Verified crawler destination', provider, url: config.url, identity };
+  return { kind: 'visitor', ...chooseRoute(campaign, destinations, context), identity };
 }
 export function validateRules(value: unknown, destinations: Destination[]): Rule[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw new Problem('Add between 1 and 30 routing rules.');
@@ -44,7 +46,7 @@ export function validateRules(value: unknown, destinations: Destination[]): Rule
     return { id: text(r.id ?? `rule-${index}`, 'Rule ID'), name: text(r.name, 'Rule name', 100), enabled: r.enabled, source: text(r.source, 'Source filter', 200, true), device: device as Rule['device'], targets };
   });
 }
-export function chooseRoute(campaign: Campaign, destinations: Destination[], context: { source: string; device: Device }, pick = (max: number) => randomInt(max)): Decision {
+export function chooseRoute<C extends CampaignConfig>(campaign: C, destinations: Destination[], context: { source: string; device: Device }, pick = (max: number) => randomInt(max)): Decision<C> {
   if (campaign.status !== 'active') throw new Problem('This campaign is paused.', 410);
   const available = (d: Destination | undefined): d is Destination => Boolean(d && d.status === 'active' && (!d.dailyCap || d.clicksToday < d.dailyCap));
   for (const rule of campaign.rules) {
@@ -60,5 +62,5 @@ export function chooseRoute(campaign: Campaign, destinations: Destination[], con
   if (available(fallback)) return { campaign, destination: fallback, ruleName: 'Fallback', eligible: [{ id: fallback.id, name: fallback.name, weight: 1 }], fallback: true };
   throw new Problem('No eligible destination. Check active routes, destination status and daily caps.', 503);
 }
-export function transactional<T>(store: Store, work: () => T): T { store.db.exec('BEGIN IMMEDIATE'); try { const result = work(); store.db.exec('COMMIT'); return result; } catch (e) { store.db.exec('ROLLBACK'); throw e; } }
+export function transactional<T>(store: Store, work: () => Promise<T>): Promise<T> { return store.db.transaction(work); }
 export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

@@ -8,18 +8,26 @@
   },
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "start": "node --experimental-strip-types server/index.ts",
+    "start": "node --env-file-if-exists=.env --experimental-strip-types server/index.ts",
+    "start:edge": "node --env-file=.env --experimental-strip-types server/index.ts",
+    "benchmark:traffic": "node --experimental-strip-types scripts/benchmark-traffic.ts",
     "dev": "vite --host 127.0.0.1 --port 5180",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "db:migrate": "node --env-file=.env --experimental-strip-types scripts/migrate-supabase.ts"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "5.3.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
     "lucide-react": "1.59.0",
+    "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
     "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "typescript": "7.0.2",

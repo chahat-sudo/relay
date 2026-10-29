@@ -6,3 +6,4 @@ data/
 !.env.example
 .impeccable/
 *.log
+supabase/.temp/

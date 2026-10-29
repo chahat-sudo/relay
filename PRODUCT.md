@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Delegated by the user: React and TypeScript for the interface; a Node.js TypeScript API; SQLite for a durable, uncomplicated local installation. Vite builds the client. AI generation uses a configurable OpenAI-compatible chat-completions endpoint and user-supplied credentials.
+Delegated by the user: React and TypeScript for the interface; a Node.js TypeScript API; Supabase PostgreSQL for durable server-side storage, with a verified import from the original SQLite database. Local administration stays on loopback. Vite builds the client. AI generation uses a configurable OpenAI-compatible chat-completions endpoint and user-supplied credentials.
 
 ## Product Purpose
 
@@ -21,7 +21,7 @@ Confirmed scope:
 - Core campaign tracker, click tracking, conversion postbacks and reports.
 - Traffic management and traffic distribution.
 - AI publishing and site/content management.
-- Optional per-campaign crawler destination URL with Google/Meta group selection, a simulator profile and separately labeled self-declared crawler logs. User-agent matching is not origin or reviewer verification.
+- Optional per-campaign crawler destination URL gated by current provider-origin verification in every detection mode. Google supports official crawler feeds and forward-confirmed DNS. Meta verification is unavailable and Meta claims follow visitor routes. The simulator cannot establish origin proof; historical user-agent-only logs remain unverified.
 - A locally runnable working application, carried forward from the user's request to run the system locally.
 
 Proposed implementation scope, subject to refinement:
