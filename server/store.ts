@@ -41,14 +41,14 @@ export function createStore(db: Database, key: Buffer) {
 export async function openStore(directory: string, connectionString: unknown = process.env.DATABASE_URL) {
   const key = readFileSync(path.join(directory, '.local-key'));
   const ca = process.env.RELAY_DATABASE_CA_FILE ? readFileSync(process.env.RELAY_DATABASE_CA_FILE, 'utf8') : undefined;
-  return openRemoteStore(connectionString, key, ca);
+  return openRemoteStore(connectionString, key, { ca });
 }
 
 /** The host owns secret delivery; opening storage never creates or replaces a key. */
-export async function openRemoteStore(connectionString: unknown, key: Buffer, ca?: string) {
+export async function openRemoteStore(connectionString: unknown, key: Buffer, options: { ca?: string; hyperdrive?: true } = {}) {
   const parsed = databaseUrl(connectionString); if (!parsed.ok) throw new Error(parsed.error.message);
   if (key.length !== 32) throw new Error('Restore the original 32-byte workspace encryption key.');
-  const db = connectDatabase(parsed.value, { ca });
+  const db = connectDatabase(parsed.value, options);
   try {
     const state = await db.prepare('SELECT key_digest FROM relay.workspace_state WHERE id=$1').get('default');
     if (!state || state.key_digest !== createHash('sha256').update(key).digest('hex')) throw new Error('The PostgreSQL workspace is not initialized with this encryption key. Run the migration or restore its original .local-key.');

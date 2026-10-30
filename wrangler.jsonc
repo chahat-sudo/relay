@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "relay",
+  "account_id": "17533b60846d46ca02a4cfd46f37619b",
   "main": "edge/app-worker.ts",
   "compatibility_date": "2026-10-01",
   "build": {
@@ -18,5 +19,6 @@
   "durable_objects": {
     "bindings": [{ "name": "BACKEND", "class_name": "RelayBackend" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayBackend"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayBackend"] }],
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "64cec2fe41fb4cbbb39dcfcb9e4ce38d" }]
 }

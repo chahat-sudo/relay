@@ -11,7 +11,8 @@ export interface AppEnvironment {
   ASSETS: Fetcher;
   BACKEND: DurableObjectNamespace;
   RELAY_PUBLIC_ORIGIN: string;
-  DATABASE_URL: string;
+  DATABASE_URL?: string;
+  HYPERDRIVE?: Hyperdrive;
   RELAY_WORKSPACE_KEY: string;
   RELAY_ADMIN_USER: string;
   RELAY_ADMIN_PASSWORD: string;
@@ -101,7 +102,7 @@ export class RelayBackend {
   private async initialize(): Promise<Backend> {
     await this.cleanupFailedSetup();
     const expected = origin(this.env);
-    const store = await openRemoteStore(this.env.DATABASE_URL, workspaceKey(this.env));
+    const store = await openRemoteStore(this.env.HYPERDRIVE?.connectionString ?? this.env.DATABASE_URL, workspaceKey(this.env), this.env.HYPERDRIVE ? { hyperdrive: true } : {});
     let traffic: TrafficRuntime | undefined; const servers: Server[] = [];
     try {
       traffic = new TrafficRuntime(store, { periodicMaintenance: false, edge: { audience: expected, keys: { worker: ingressKey(this.env) } } });

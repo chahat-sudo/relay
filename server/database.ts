@@ -76,7 +76,7 @@ export function databaseUrl(value: unknown): Result<string> {
   return { ok: true, value };
 }
 
-export function connectDatabase(connectionString: string, options: { migration?: boolean; ca?: string } = {}) {
+export function connectDatabase(connectionString: string, options: { migration?: boolean; ca?: string; hyperdrive?: true } = {}) {
   const parsed = databaseUrl(connectionString); if (!parsed.ok) throw new Error(parsed.error.message);
   const url = new URL(parsed.value); const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   for (const key of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) url.searchParams.delete(key);
@@ -84,7 +84,9 @@ export function connectDatabase(connectionString: string, options: { migration?:
   const pool = new Pool({
     connectionString: url.href, max: 5, connectionTimeoutMillis: 10000, idleTimeoutMillis: 30000,
     statement_timeout: options.migration ? 30000 : 10000,
-    ssl: local ? false : { rejectUnauthorized: true, ...(options.ca ? { ca: options.ca } : {}) },
+    // Hyperdrive owns the origin TLS connection (verify-full with the Supabase CA).
+    // Its binding's internal socket is not a direct Internet database connection.
+    ssl: local || options.hyperdrive ? false : { rejectUnauthorized: true, ...(options.ca ? { ca: options.ca } : {}) },
     types: { getTypeParser: (oid, format) => oid === 20 ? integer : types.getTypeParser(oid, format) },
     application_name: options.migration ? 'relay-migration' : 'relay',
   });
@@ -94,7 +96,9 @@ export function connectDatabase(connectionString: string, options: { migration?:
     async acquire() {
       const client = await pool.connect();
       try {
-        if (!options.migration && !initialized.has(client)) { await client.query('SET ROLE relay_backend'); initialized.add(client); }
+        // Hyperdrive authenticates as a restricted login inheriting relay_backend.
+        // Transaction pooling cannot retain a session-level SET ROLE.
+        if (!options.migration && !options.hyperdrive && !initialized.has(client)) { await client.query('SET ROLE relay_backend'); initialized.add(client); }
       } catch (error) { client.release(true); throw error; }
       return {
         async query(sql, values = []) {

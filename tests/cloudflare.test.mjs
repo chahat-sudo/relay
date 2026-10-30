@@ -19,7 +19,8 @@ test('Cloudflare runtime serves authenticated assets and PostgreSQL APIs, and si
     await socket.start();
     mf = new Miniflare(convertV4MiniflareOptions({ workers: [{
       name: 'relay', modules: true, scriptPath: '.wrangler/test-bundle/app-worker.js', compatibilityDate: '2026-10-01',
-      bindings: { DATABASE_URL: `postgresql://postgres:postgres@${socket.getServerConn()}/postgres`, RELAY_WORKSPACE_KEY: key.toString('base64'), RELAY_ADMIN_USER: 'owner', RELAY_ADMIN_PASSWORD: password, RELAY_PUBLIC_ORIGIN: origin },
+      bindings: { RELAY_WORKSPACE_KEY: key.toString('base64'), RELAY_ADMIN_USER: 'owner', RELAY_ADMIN_PASSWORD: password, RELAY_PUBLIC_ORIGIN: origin },
+      hyperdrives: { HYPERDRIVE: `postgresql://postgres:postgres@${socket.getServerConn()}/postgres` },
       durableObjects: { BACKEND: { className: 'RelayBackend', useSQLite: true } },
       assets: { directory: 'dist', binding: 'ASSETS', run_worker_first: true, routerConfig: { has_user_worker: true, invoke_user_worker_ahead_of_assets: true }, assetConfig: { not_found_handling: 'single-page-application' } },
       outboundService: async request => new Response(JSON.stringify(new URL(request.url).pathname.endsWith('/chat/completions') ? { choices: [{ message: { content: JSON.stringify({ title: 'Worker draft', excerpt: 'Runtime verification', body: 'A simulated provider draft for review.' }) } }] } : { prefixes: [{ ipv4Prefix: '66.249.66.0/24' }] }), { headers: { 'Content-Type': 'application/json' } }),

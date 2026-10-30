@@ -13,18 +13,21 @@ One `RelayBackend` Durable Object owns the traffic runtime, crawler caches,
 replay protection and in-memory rate windows. Application records remain in the
 private Supabase `relay` schema. Durable Object storage holds the maintenance
 alarm; it does not replace PostgreSQL. A 30-minute alarm refreshes intelligence
-and runs configured retention. The database pool is bounded to five connections
-with idle connections closed after 30 seconds. Production capacity is unmeasured.
+and runs configured retention. Hyperdrive query caching is disabled. Its origin
+connection limit is five, and the application pool also permits at most five
+connections, closing idle sockets after 30 seconds. Production capacity is unmeasured.
 
 ## Configure and deploy
 
-1. In Supabase **Connect → Session pooler**, copy the connection string on port
-   **5432**. Its user is `postgres.PROJECT_REF`, rather than the direct endpoint's
-   `postgres`. Add it to the ignored `.env` as `RELAY_WORKER_DATABASE_URL`.
+1. The `HYPERDRIVE` binding is configured for this account's `relay-supabase`
+   resource. It connects to the original Supabase database using the restricted
+   `relay_cloudflare` login, which inherits `relay_backend` and has no superuser,
+   database-creation, role-creation or RLS-bypass authority. The database password
+   is held by Hyperdrive, rather than exposed to browser code or Worker secrets.
    Keep `DATABASE_URL` for the existing Node installation unchanged.
 2. Run `npm run cloudflare:secrets`. This prepares the ignored
-   `data/cloudflare-secrets.json` with `DATABASE_URL`, the original encryption key
-   encoded as `RELAY_WORKSPACE_KEY`, `RELAY_ADMIN_USER`, and a generated
+   `data/cloudflare-secrets.json` with the original encryption key encoded as
+   `RELAY_WORKSPACE_KEY`, `RELAY_ADMIN_USER`, and a generated
    `RELAY_ADMIN_PASSWORD`. Existing login values are preserved, and changes to an
    existing file receive a backup. Inspect the login locally; never commit this file.
 3. Run `npx wrangler login` if the Cloudflare CLI session has expired.
@@ -48,11 +51,15 @@ Wrangler's `build.command` runs TypeScript checks and Vite. The existing
 Configure runtime secrets on the `relay` Worker, rather than only as build variables.
 GitHub deployments do not upload ignored local files or secrets.
 
-The direct Supabase endpoint failed certificate validation in local workerd with
-`UnknownIssuer`, including when supplied the downloaded Supabase CA. Workers does
-not use the Node server's custom CA file. Certificate validation has not been
-disabled. The session pooler connection still needs verification for this project
-before the deployment can be considered live and working.
+The direct Supabase endpoint and session pooler both require the project's private
+CA. The CA is uploaded to Cloudflare as `relay-supabase-root`, and Hyperdrive uses
+`verify-full` to verify its origin certificate and hostname. The internal Worker
+socket uses Hyperdrive's binding transport; Internet database connections still
+require verified TLS. See [Cloudflare's custom-CA configuration](https://developers.cloudflare.com/hyperdrive/configuration/tls-ssl-certificates-for-hyperdrive/).
+
+Hyperdrive pools transactions, so it cannot retain a session-level `SET ROLE`.
+The origin login inherits the restricted backend privileges directly. Existing
+Node connections continue to use their original TLS and `SET ROLE` behavior.
 
 ## Verification
 
@@ -63,6 +70,13 @@ draft generation, published articles, tracking, persistent rate windows, signed
 client context, and verified crawler routing. Cloudflare metadata, crawler feeds
 and the AI provider are simulated. This does not verify production Supabase TLS
 or the Cloudflare account's deployment settings.
+
+Live verification on 2026-10-30 confirmed owner authentication, the frontend,
+JSON bootstrap and reports through Hyperdrive, published pages, and a tracking
+HEAD check. Reports retained 2 campaigns, 2 destinations, 6 clicks and 1 conversion.
+No synthetic production click or conversion was created. Runtime integration tests
+cover writes against local PostgreSQL; no production configuration was changed
+solely to test an API write.
 
 After deployment, `/api/bootstrap` must require authentication and return JSON
 after sign-in. `/api/summary?days=90` should show the migrated records. Use a HEAD
