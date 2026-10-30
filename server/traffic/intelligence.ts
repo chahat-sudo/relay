@@ -90,7 +90,7 @@ export class Intelligence {
     const job = (async () => {
       this.nextAttempt.set(service, this.clock() + 60000);
       try {
-        const response = await (this.options.fetcher ?? fetch)(feedSources[service], { redirect: 'error', signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(5000)]) });
+        const response = await (this.options.fetcher ?? fetch)(feedSources[service], { redirect: 'manual', signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(5000)]) });
         if (this.closed) { await response.body?.cancel(); return; }
         if (!response.ok) { await response.body?.cancel(); throw new Error(`Feed returned HTTP ${response.status}.`); }
         const reader = response.body?.getReader(); if (!reader) throw new Error('Feed response is empty.');

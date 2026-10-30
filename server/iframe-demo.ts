@@ -1,5 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { URL as FileURL } from 'node:url';
 
 const styles = `
 @font-face{font-family:DM;src:url('/example/frame-font') format('woff2');font-weight:100 900;font-display:swap}
@@ -30,7 +31,7 @@ function page(title: string, body: string, className = '') {
 // Deliberately fixed local destinations: this demo cannot frame a caller-supplied URL.
 export async function serveIframeDemo(res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === '/example/frame-font') {
-    const font = await readFile(new URL('../node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2', import.meta.url));
+    const font = await readFile(new FileURL('../node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2', import.meta.url));
     res.writeHead(200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'public, max-age=3600' }); res.end(font); return true;
   }
   const routes = ['/example/frame', '/example/landing', '/example/landing/preview'];

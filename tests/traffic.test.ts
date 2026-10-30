@@ -403,7 +403,7 @@ test('Worker creates an envelope accepted by the real ingress and overwrites for
   try {
     await f.setup(); await f.api('/traffic/config', { mode: 'observe' }, 'PUT');
     let forwarded: Response | null = null;
-    globalThis.fetch = async (input, init) => { const u = new URL(String(input)); forwarded = await originalFetch(f.publicBase + u.pathname + u.search, init); return forwarded; };
+    globalThis.fetch = async (input, init) => { const u = new URL(input instanceof Request ? input.url : String(input)); forwarded = await originalFetch(f.publicBase + u.pathname + u.search, input instanceof Request ? input : init); return forwarded; };
     const request = new Request(f.audience + '/r/observed', { headers: { 'user-agent': 'Mozilla/5.0', accept: 'text/html', 'cf-connecting-ip': '8.8.8.8', 'cf-verified-bot': 'true', 'x-relay-envelope': 'forged', 'x-relay-signature': 'forged' } });
     Object.defineProperty(request, 'cf', { value: {} });
     const response = await worker.fetch(request, { PUBLIC_ORIGIN: f.audience, ORIGIN_URL: 'https://origin.example.test', RELAY_EDGE_KEY: f.key, RELAY_EDGE_KEY_ID: 'primary' });

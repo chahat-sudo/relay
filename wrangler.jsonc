@@ -1,12 +1,22 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "relay",
+  "main": "edge/app-worker.ts",
   "compatibility_date": "2026-10-01",
   "build": {
     "command": "npm run build"
   },
   "assets": {
+    "binding": "ASSETS",
+    "run_worker_first": true,
     "directory": "./dist",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "vars": {
+    "RELAY_PUBLIC_ORIGIN": "https://relay.chahat.workers.dev"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "BACKEND", "class_name": "RelayBackend" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayBackend"] }]
 }

@@ -18,9 +18,9 @@ Open **http://127.0.0.1:4180**. It binds only to loopback and uses SQLite under 
 
 For client development, run `npm start` and `npm run dev` in separate terminals. Vite serves port 5180 and proxies API requests to 4180. `npm run build` checks TypeScript and builds locally served assets, including fonts.
 
-Cloudflare frontend deployment uses the root Wrangler configuration. See
-[deployment commands and backend requirements](CLOUDFLARE-DEPLOYMENT.md) before
-using the hosted workspace.
+Cloudflare deployment uses the root Wrangler configuration for both frontend and
+backend, with owner authentication. See [production setup](CLOUDFLARE-DEPLOYMENT.md)
+for Worker secrets, database connectivity and deployment verification.
 
 ### Iframe landing-page example
 

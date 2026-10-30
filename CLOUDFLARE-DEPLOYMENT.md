@@ -1,44 +1,73 @@
-# Cloudflare deployment
+﻿# Relay on Cloudflare Workers
 
-The root `wrangler.jsonc` explicitly builds and deploys the Vite frontend as
-Cloudflare static assets. Wrangler no longer attempts to modify Vite configuration
-during a non-interactive deployment. Wrangler is pinned in `package-lock.json`.
+The root `wrangler.jsonc` deploys both the Vite assets and `edge/app-worker.ts`.
+The public origin is `https://relay.chahat.workers.dev`. Change
+`RELAY_PUBLIC_ORIGIN` in that configuration when changing the production domain.
 
-From the repository root:
+The Worker protects the workspace and `/api` with HTTP Basic authentication.
+The browser prompts for the owner login. Tracking, collection, token-authenticated
+postbacks and published articles remain public. The asset fallback cannot handle
+API requests: they always run through the backend.
 
-```sh
-npm ci
-npm run deploy:check
-npm run deploy
-```
+One `RelayBackend` Durable Object owns the traffic runtime, crawler caches,
+replay protection and in-memory rate windows. Application records remain in the
+private Supabase `relay` schema. Durable Object storage holds the maintenance
+alarm; it does not replace PostgreSQL. A 30-minute alarm refreshes intelligence
+and runs configured retention. The database pool is bounded to five connections
+with idle connections closed after 30 seconds. Production capacity is unmeasured.
 
-In Cloudflare Workers Builds, keep the root directory at the repository root and
-set the deploy command to `npm run deploy`. Leave the separate build command empty:
-Wrangler runs `npm run build` through its `build.command` setting. The existing
-`npx wrangler deploy` command also uses this configuration and the installed version.
+## Configure and deploy
 
-Set the public `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build
-variables if the frontend uses those clients. Never use a `VITE_` prefix for
-database passwords, the encryption key or server credentials.
+1. In Supabase **Connect → Session pooler**, copy the connection string on port
+   **5432**. Its user is `postgres.PROJECT_REF`, rather than the direct endpoint's
+   `postgres`. Add it to the ignored `.env` as `RELAY_WORKER_DATABASE_URL`.
+   Keep `DATABASE_URL` for the existing Node installation unchanged.
+2. Run `npm run cloudflare:secrets`. This prepares the ignored
+   `data/cloudflare-secrets.json` with `DATABASE_URL`, the original encryption key
+   encoded as `RELAY_WORKSPACE_KEY`, `RELAY_ADMIN_USER`, and a generated
+   `RELAY_ADMIN_PASSWORD`. Existing login values are preserved, and changes to an
+   existing file receive a backup. Inspect the login locally; never commit this file.
+3. Run `npx wrangler login` if the Cloudflare CLI session has expired.
+4. Upload the prepared secrets:
 
-## Backend requirement
+   ```sh
+   npx wrangler secret bulk data/cloudflare-secrets.json
+   ```
 
-This configuration deploys the frontend only. It does not deploy `server/index.ts`
-or provide its API, redirects, postbacks or published articles. Vite's `/api` proxy
-only runs in development. A successful deployment check verifies the build and
-asset packaging; it does not establish a working production database or API.
+5. Run the deployment checks and deploy:
 
-Before using the hosted workspace, choose and implement a backend deployment:
+   ```sh
+   npm run test:worker
+   npm run deploy
+   ```
 
-- Host the Node server separately, add authentication for administration, and
-  configure same-origin proxying to that authenticated backend; or
-- Adapt the backend lifecycle, HTTP entry point, secrets and database connections
-  to Cloudflare Workers and add authentication for administration.
+For Cloudflare Workers Builds, use this repository's root directory, leave the
+separate build command empty, and use `npm run deploy` as the deploy command.
+Wrangler's `build.command` runs TypeScript checks and Vite. The existing
+`npx wrangler deploy` command also works with the pinned Wrangler package.
+Configure runtime secrets on the `relay` Worker, rather than only as build variables.
+GitHub deployments do not upload ignored local files or secrets.
 
-Keep the original encryption key and database TLS validation in either option.
-Do not remove the localhost restriction to expose the existing unauthenticated
-administration server. Do not commit `.env` or `data/` to deploy the backend.
+The direct Supabase endpoint failed certificate validation in local workerd with
+`UnknownIssuer`, including when supplied the downloaded Supabase CA. Workers does
+not use the Node server's custom CA file. Certificate validation has not been
+disabled. The session pooler connection still needs verification for this project
+before the deployment can be considered live and working.
 
-The separate `edge/wrangler.toml` deploys the optional signed tracking ingress.
-It requires a running origin and its own secrets; the root frontend configuration
-does not replace it. See `TRAFFIC-DETECTION.md` for that setup.
+## Verification
+
+`npm run test:worker` builds the actual Worker and runs it in workerd through
+Miniflare, with an embedded PostgreSQL engine exposed over local TCP. It checks
+authentication, static assets, JSON APIs, origin checks, encrypted AI credentials,
+draft generation, published articles, tracking, persistent rate windows, signed
+client context, and verified crawler routing. Cloudflare metadata, crawler feeds
+and the AI provider are simulated. This does not verify production Supabase TLS
+or the Cloudflare account's deployment settings.
+
+After deployment, `/api/bootstrap` must require authentication and return JSON
+after sign-in. `/api/summary?days=90` should show the migrated records. Use a HEAD
+request to an existing tracking link for a check that creates no click. Confirm
+the browser can create and save configuration before sending production traffic.
+
+The legacy `edge/wrangler.toml` remains available for the separate Node-origin
+tracking ingress. It is unnecessary for the integrated Worker deployment.

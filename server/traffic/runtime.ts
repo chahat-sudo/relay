@@ -12,7 +12,7 @@ import { parseBrowser } from './validation.ts';
 import { collectorScript } from './collector.ts';
 import { publicRoute } from '../../shared/public-routes.ts';
 
-export interface TrafficRuntimeOptions extends IntelligenceOptions { edge?: EdgeOptions; }
+export interface TrafficRuntimeOptions extends IntelligenceOptions { edge?: EdgeOptions; periodicMaintenance?: boolean; }
 function cookie(req: IncomingMessage, name: string) { return String(req.headers.cookie ?? '').split(';').map(x => x.trim()).find(x => x.startsWith(name + '='))?.slice(name.length + 1) ?? ''; }
 export function responseJson(res: ServerResponse, data: unknown, code = 200) { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 export async function readPublicBody(req: IncomingMessage) {
@@ -37,17 +37,17 @@ export class TrafficRuntime {
   private jobs = new Set<Promise<void>>();
   private closed = false;
   private closing: Promise<void> | null = null;
-  private timer: ReturnType<typeof setInterval>;
+  private timer: ReturnType<typeof setInterval> | undefined;
   readonly store: Store;
   readonly options: TrafficRuntimeOptions;
   constructor(store: Store, options: TrafficRuntimeOptions = {}) {
     this.store = store; this.options = options;
     this.repository = trafficRepository(store); this.clock = options.clock ?? Date.now;
     this.intelligence = new Intelligence(store, options); this.edge = options.edge ? new EdgeVerifier(options.edge, this.clock) : null;
-    this.timer = setInterval(() => { if (!this.closed) this.background(this.maintain()); }, 60000); this.timer.unref();
+    if (options.periodicMaintenance !== false) { this.timer = setInterval(() => { if (!this.closed) this.background(this.maintain()); }, 60000); this.timer.unref(); }
   }
   get ready() { return this.intelligence.ready; }
-  private async maintain() {
+  async maintain() {
     const config = await this.repository.config();
     if (this.closed || (config.mode === 'off' && !await this.store.db.prepare("SELECT 1 FROM relay.campaigns WHERE status='active' AND (crawler_routing::jsonb->>'enabled')='true' LIMIT 1").get())) return;
     await this.repository.maintain(this.clock());
@@ -60,6 +60,7 @@ export class TrafficRuntime {
     const job = work.then(() => {}, error => { if (!this.closed) console.error('Traffic background work failed:', error instanceof Error ? error.message : 'unknown failure'); }).finally(() => this.jobs.delete(job));
     this.jobs.add(job);
   }
+  async settle() { while (this.jobs.size) await Promise.allSettled([...this.jobs]); }
   private networkKinds(facts: RequestFacts, config: TrafficConfig) {
     if (this.compiledPolicy !== config) {
       this.networks = config.networks.map(n => { const p = parseNetwork(n.cidr); if (!p.ok) throw new Problem('Stored network rule is invalid.', 503); return { network: p.value, kind: n.kind }; }); this.compiledPolicy = config;
@@ -185,7 +186,7 @@ export class TrafficRuntime {
     if (Date.parse(String(row.expires_at)) <= this.clock()) { (await this.store.db.prepare("UPDATE relay.traffic_requests SET collection='expired' WHERE id=$1 AND collection='pending'").run(requestId)); throw new Problem('Collection session expired.', 410); }
     if (!String(req.headers['content-type']).startsWith('application/json')) throw new Problem('Submit JSON browser observations.', 415);
     const bytes = raw ?? await readPublicBody(req); let input: unknown;
-    try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new Problem('Invalid UTF-8 JSON observations.'); }
+    try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes)); } catch { throw new Problem('Invalid UTF-8 JSON observations.'); }
     const parsed = parseBrowser(input); if (!parsed.ok) throw new Problem(parsed.error.message);
     const digest = hash(JSON.stringify(parsed.value));
     const duplicate = await this.durable(async () => {
@@ -232,10 +233,10 @@ export class TrafficRuntime {
     try { return (await transactional(this.store, work)); }
     catch (error) { if (error instanceof Problem) throw error; throw new Problem('The tracking record could not be committed. Retry later.', 503); }
   }
-  createPublicServer() {
+  createPublicServer(serverOptions: http.ServerOptions = { maxHeaderSize: 16384 }) {
     if (!this.edge || !this.options.edge) throw new Error('Configure authenticated edge ingress before starting the public listener.');
     const origin = this.options.edge.audience;
-    const server = http.createServer({ maxHeaderSize: 16384 }, async (req, res) => {
+    const server = http.createServer(serverOptions, async (req, res) => {
       res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'no-store');
       try {
         const url = new URL(req.url ?? '/', origin);
